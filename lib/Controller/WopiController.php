@@ -180,32 +180,34 @@ class WopiController extends Controller {
 		$userDisplayName = $user !== null && !$wopi->isGuest() ? $user->getDisplayName() : $wopi->getGuestDisplayname();
 		$isVersion = $version !== '0';
 
-		return new JSONResponse([
-			'BaseFileName' => $file->getName(),
-			'Size' => $file->getSize(),
-			'Version' => $version,
-			'UserId' => !$wopi->isGuest() ? $wopi->getEditorUid() : $guestUserId,
-			'OwnerId' => $wopi->getOwnerUid(),
-			'UserFriendlyName' => $userDisplayName,
-			'UserExtraInfo' => [],
-			'UserCanWrite' => (bool)$wopi->getCanwrite(),
-			'UserCanNotWriteRelative' => $this->encryptionManager->isEnabled() || $wopi->isGuest(),
-			'PostMessageOrigin' => $wopi->getServerHost(),
-			'LastModifiedTime' => Helper::toISO8601($file->getMTime()),
-			'SupportsRename' => !$isVersion,
-			'UserCanRename' => !$wopi->isGuest() && !$isVersion,
-			'EnableInsertRemoteImage' => !$isPublic,
-			'EnableShare' => $file->isShareable() && !$isVersion,
-			'DownloadAsPostMessage' => $wopi->getDirect(),
-			'SupportsLocks' => $this->lockManager->isLockProviderAvailable(),
-			'HideUserList' => '',
-			...$this->watermarkService->getWopiParams($wopi)
-			...$this->templateManager->getWopiParams($wopi),
-			...$this->watermarkService->getWopiParams($wopi),
-			...$this->checkFileInfoUserExtraInfo($wopi),
-			...$this->setFederationFileInfo($wopi),
-			...$this->checkFileInfoHideDownload($wopi),
-		]);
+		return new JSONResponse(array_merge(
+			[
+				'BaseFileName' => $file->getName(),
+				'Size' => $file->getSize(),
+				'Version' => $version,
+				'UserId' => !$wopi->isGuest() ? $wopi->getEditorUid() : $guestUserId,
+				'OwnerId' => $wopi->getOwnerUid(),
+				'UserFriendlyName' => $userDisplayName,
+				'UserExtraInfo' => [],
+				'UserCanWrite' => (bool)$wopi->getCanwrite(),
+				'UserCanNotWriteRelative' => $this->encryptionManager->isEnabled() || $wopi->isGuest(),
+				'PostMessageOrigin' => $wopi->getServerHost(),
+				'LastModifiedTime' => Helper::toISO8601($file->getMTime()),
+				'SupportsRename' => !$isVersion,
+				'UserCanRename' => !$wopi->isGuest() && !$isVersion,
+				'EnableInsertRemoteImage' => !$isPublic,
+				'EnableShare' => $file->isShareable() && !$isVersion,
+				'DownloadAsPostMessage' => $wopi->getDirect(),
+				'HideUserList' => '',
+				'SupportsLocks' => $this->lockManager->isLockProviderAvailable(),
+			],
+			// TODO: Once PHP is >= 8.1 we can use array unpacking with string-keyed arrays
+			$this->templateManager->getWopiParams($wopi),
+			$this->watermarkService->getWopiParams($wopi),
+			$this->checkFileInfoUserExtraInfo($wopi),
+			$this->setFederationFileInfo($wopi),
+			$this->checkFileInfoHideDownload($wopi),
+		));
 	}
 
 	private function checkFileInfoUserExtraInfo(Wopi $wopi): array {
