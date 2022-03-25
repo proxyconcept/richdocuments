@@ -31,30 +31,10 @@
 				{{ t('richdocuments', 'Collabora Online is a powerful LibreOffice-based online office suite with collaborative editing, which supports all major documents, spreadsheet and presentation file formats and works together with all modern browsers.') }}
 			</p>
 
-			<div v-if="settings.wopi_url && settings.wopi_url !== ''">
-				<div v-if="serverError == 2 && isNginx && serverMode === 'builtin'" id="security-warning-state-failure">
-					<span class="icon icon-close-white" /><span class="message">{{ t('richdocuments', 'Could not establish connection to the Collabora Online server. This might be due to a missing configuration of your web server. For more information, please visit: ') }}<a title="Connecting Collabora Online Single Click with Nginx"
-						href="https://www.collaboraoffice.com/online/connecting-collabora-online-single-click-with-nginx/"
-						target="_blank"
-						rel="noopener"
-						class="external">{{ t('richdocuments', 'Connecting Collabora Online Single Click with Nginx') }}</a></span>
-				</div>
-				<div v-else-if="serverError == 2" id="security-warning-state-failure">
-					<span class="icon icon-close-white" /><span class="message">{{ t('richdocuments', 'Could not establish connection to the Collabora Online server.') }}</span>
-				</div>
-				<div v-else-if="serverError == 1" id="security-warning-state-failure">
-					<span class="icon icon-loading" /><span class="message">{{ t('richdocuments', 'Setting up a new server') }}</span>
-				</div>
-				<div v-else-if="serverError == 3" id="security-warning-state-failure">
-					<span class="icon icon-close-white" /><span class="message">{{ t('richdocuments', 'Collabora Online should use the same protocol as the server installation.') }}</span>
-				</div>
-				<div v-else id="security-warning-state-ok">
-					<span class="icon icon-checkmark-white" /><span class="message">{{ t('richdocuments', 'Collabora Online server is reachable.') }}</span>
-				</div>
-			</div>
-			<div v-else id="security-warning-state-warning">
-				<span class="icon icon-error-white" /><span class="message">{{ t('richdocuments', 'Please configure a Collabora Online server to start editing documents') }}</span>
-			</div>
+			<SetupHints :settings="settings"
+				:server-error="serverError"
+				:is-nginx="isNginx"
+				:server-mode="serverMode" />
 
 			<fieldset>
 				<div>
@@ -363,14 +343,13 @@ import SettingsExternalApps from './SettingsExternalApps'
 
 import '@nextcloud/dialogs/styles/toast.scss'
 
-const SERVER_STATE_OK = 0
-const SERVER_STATE_LOADING = 1
-const SERVER_STATE_CONNECTION_ERROR = 2
-const PROTOCOL_MISMATCH = 3
+import SetupHints from './SetupHints'
+import { SETUP_HINTS, SERVER_MODE } from '../helpers/setupcheck'
 
 export default {
 	name: 'AdminSettings',
 	components: {
+		SetupHints,
 		SettingsCheckbox,
 		SettingsInputText,
 		SettingsSelectTag,
@@ -391,7 +370,7 @@ export default {
 			hasNextcloudBranding: loadState('richdocuments', 'hasNextcloudBranding', true),
 
 			serverMode: '',
-			serverError: Object.values(OC.getCapabilities().richdocuments.collabora).length > 0 ? SERVER_STATE_OK : SERVER_STATE_CONNECTION_ERROR,
+			serverError: SETUP_HINTS.SERVER_STATE_LOADING,
 			hostErrors: [window.location.host === 'localhost' || window.location.host === '127.0.0.1', window.location.protocol !== 'https:', false],
 			demoServers: null,
 			CODEInstalled: 'richdocumentscode' in OC.appswebroots,
@@ -433,23 +412,13 @@ export default {
 			return t('richdocuments', 'Contact {0} to get an own installation.', [this.settings.demoUrl.provider_name])
 		},
 		isSetup() {
-			return this.serverError === SERVER_STATE_OK
+			return this.serverError === SETUP_HINTS.SERVER_STATE_OK
 		},
 		isOoxml() {
 			return this.settings.doc_format === 'ooxml'
 		},
 		hasHostErrors() {
 			return this.hostErrors.some(x => x)
-		},
-	},
-	watch: {
-		'settings.wopi_url'(newVal, oldVal) {
-			if (newVal !== oldVal) {
-				const protocol = this.checkUrlProtocol(newVal)
-				const nextcloudProtocol = this.checkUrlProtocol(window.location.href)
-				if (protocol !== nextcloudProtocol) this.serverError = PROTOCOL_MISMATCH
-				else this.serverError = Object.values(OC.getCapabilities().richdocuments.collabora).length > 0 ? SERVER_STATE_OK : SERVER_STATE_CONNECTION_ERROR
-			}
 		},
 	},
 	beforeMount() {
@@ -468,7 +437,7 @@ export default {
 		}
 		Vue.set(this.settings, 'data', this.initial.settings)
 		if (this.settings.wopi_url === '') {
-			this.serverError = SERVER_STATE_CONNECTION_ERROR
+			this.serverError = SETUP_HINTS.SERVER_STATE_NOT_SETUP
 		}
 		Vue.set(this.settings, 'edit_groups', this.settings.edit_groups ? this.settings.edit_groups.split('|') : null)
 		Vue.set(this.settings, 'use_groups', this.settings.use_groups ? this.settings.use_groups.split('|') : null)
@@ -494,6 +463,7 @@ export default {
 			this.CODEAppID = 'richdocumentscode_arm64'
 		}
 		this.checkIfDemoServerIsActive()
+		this.setupCheck(this.initial.wopi_url, loadState('richdocuments', 'discovery', null))
 	},
 	methods: {
 		async fetchDemoServers() {
@@ -565,21 +535,49 @@ export default {
 			})
 		},
 		async updateServer() {
-			this.serverError = SERVER_STATE_LOADING
+			this.serverError = SETUP_HINTS.SERVER_STATE_UPDATING
 			try {
-				await this.updateSettings({
+				const { data } = await this.updateSettings({
 					wopi_url: this.settings.wopi_url,
 					disable_certificate_verification: this.settings.disable_certificate_verification,
 				})
-				this.serverError = SERVER_STATE_OK
+				this.setupCheck(this.settings.wopi_url, data.data.discovery)
 			} catch (e) {
 				console.error(e)
-				this.serverError = SERVER_STATE_CONNECTION_ERROR
+				this.serverError = SETUP_HINTS.SERVER_STATE_CONNECTION_ERROR
 				if (e.response.data.hint === 'missing_capabilities') {
+					this.serverError = SETUP_HINTS.SERVER_STATE_CONNECTION_ERROR_CAPABILITIES
 					showWarning('Could not connect to the /hosting/capabilities endpoint. Please check if your webserver configuration is up to date.')
 				}
 			}
 			this.checkIfDemoServerIsActive()
+		},
+		async setupCheck(wopiUrl, browserUrl) {
+			if (!wopiUrl) {
+				this.serverError = SETUP_HINTS.SERVER_STATE_NOT_SETUP
+				return
+			}
+			console.debug('setupCheck', wopiUrl, browserUrl)
+			// Validate that the Nextcloud server could obtain a proper url
+			if (!browserUrl) {
+				this.serverError = SETUP_HINTS.SERVER_STATE_CONNECTION_ERROR
+				return
+			}
+			// Check if discovery returns the proper protocol
+			if (browserUrl.slice(0, 5) !== (location.protocol + '//' + location.host).slice(0, 5)) {
+				this.serverError = SETUP_HINTS.PROTOCOL_MISMATCH
+				return
+			}
+
+			// Check browser reachability of Collabora Online
+			try {
+				await fetch(browserUrl, { mode: 'no-cors' })
+			} catch (e) {
+				this.serverError = SETUP_HINTS.SERVER_STATE_CLIENT_CONNECTION_ERROR
+				return
+			}
+
+			this.serverError = SETUP_HINTS.SERVER_STATE_OK
 		},
 		async updateSettings(data) {
 			this.updating = true
@@ -607,13 +605,13 @@ export default {
 			this.settings.demoUrl = this.demoServers ? this.demoServers.find((server) => server.demo_url === this.settings.wopi_url) : null
 			this.settings.CODEUrl = this.CODEInstalled ? window.location.protocol + '//' + window.location.host + generateFilePath(this.CODEAppID, '', '') + 'proxy.php?req=' : null
 			if (this.settings.wopi_url && this.settings.wopi_url !== '') {
-				this.serverMode = 'custom'
+				this.serverMode = SERVER_MODE.CUSTOM
 			}
 			if (this.settings.demoUrl) {
-				this.serverMode = 'demo'
+				this.serverMode = SERVER_MODE.DEMO
 				this.approvedDemoModal = true
 			} else if (this.settings.CODEUrl && this.settings.CODEUrl === this.settings.wopi_url) {
-				this.serverMode = 'builtin'
+				this.serverMode = SERVER_MODE.BUILTIN
 			}
 		},
 		demoServerLabel(server) {
@@ -628,16 +626,6 @@ export default {
 			this.settings.wopi_url = this.settings.CODEUrl
 			this.settings.disable_certificate_verification = false
 			await this.updateServer()
-		},
-		checkUrlProtocol(string) {
-			let url
-			try {
-				url = new URL(string)
-			} catch (_) {
-				return false
-			}
-
-			return url.protocol
 		},
 	},
 }
@@ -670,13 +658,6 @@ export default {
 
 	.section {
 		border-bottom: 1px solid var(--color-border);
-	}
-
-	#security-warning-state-failure,
-	#security-warning-state-warning,
-	#security-warning-state-ok {
-		margin-top: 10px;
-		margin-bottom: 20px;
 	}
 
 	.option-inline {

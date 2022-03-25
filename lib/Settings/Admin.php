@@ -28,6 +28,8 @@ use OCA\Richdocuments\Service\CapabilitiesService;
 use OCA\Richdocuments\Service\DemoService;
 use OCA\Richdocuments\Service\InitialStateService;
 use OCA\Richdocuments\TemplateManager;
+use OCP\AppFramework\Http\ContentSecurityPolicy;
+use OCP\AppFramework\Http\EmptyContentSecurityPolicy;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IConfig;
 use OCP\Settings\ISettings;
@@ -70,7 +72,8 @@ class Admin implements ISettings {
 
 	public function getForm() {
 		$this->initialState->provideCapabilities();
-		return new TemplateResponse(
+		$this->initialState->provideSettings();
+		$response = new TemplateResponse(
 			'richdocuments',
 			'admin',
 			[
@@ -94,6 +97,11 @@ class Admin implements ISettings {
 			],
 			'blank'
 		);
+		$csp = new EmptyContentSecurityPolicy();
+		// FIXME: This does not seem to get applied
+		$csp->addAllowedConnectDomain('*');
+		$response->setContentSecurityPolicy($csp);
+		return $response;
 	}
 
 	public function getSection() {

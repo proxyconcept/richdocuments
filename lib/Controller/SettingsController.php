@@ -204,7 +204,10 @@ class SettingsController extends Controller{
 
 		$response = [
 			'status' => 'success',
-			'data' => ['message' => $message]
+			'data' => [
+				'discovery' => $this->wopiParser->getUrlSrc('application/vnd.oasis.opendocument.text')['urlsrc'],
+				'message' => $message
+			]
 		];
 
 		return new JSONResponse($response);
