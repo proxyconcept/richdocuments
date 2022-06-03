@@ -181,9 +181,6 @@ class DocumentController extends Controller {
 				'token_ttl' => $wopi->getExpiry(),
 				'urlsrc' => $urlSrc,
 				'path' => $folder->getRelativePath($item->getPath()),
-				'instanceId' => $this->config->getSystemValue('instanceid'),
-				'canonical_webroot' => $this->appConfig->getAppValue('canonical_webroot'),
-				'userId' => $this->uid
 			];
 
 			$encryptionManager = \OC::$server->getEncryptionManager();
@@ -196,10 +193,7 @@ class DocumentController extends Controller {
 				$encryptionManager->getEncryptionModule()->update($absPath, $owner, $accessList);
 			}
 
-			$this->initialState->provideDocument($wopi);
-			$response = new TemplateResponse('richdocuments', 'documents', $params, 'base');
-			$this->applyPolicies($response);
-			return $response;
+			return $this->documentTemplateResponse($wopi, $params);
 		} catch (\Exception $e) {
 			$this->logger->logException($e, ['app' => 'richdocuments']);
 			return $this->renderErrorPage('Failed to open the requested file.');
@@ -250,15 +244,9 @@ class DocumentController extends Controller {
 			'token_ttl' => $wopi->getExpiry(),
 			'urlsrc' => $urlSrc,
 			'path' => $userFolder->getRelativePath($file->getPath()),
-			'instanceId' => $this->config->getSystemValue('instanceid'),
-			'canonical_webroot' => $this->appConfig->getAppValue('canonical_webroot'),
-			'userId' => $this->uid
 		];
 
-		$this->initialState->provideDocument($wopi);
-		$response = new TemplateResponse('richdocuments', 'documents', $params, 'base');
-		$this->applyPolicies($response);
-		return $response;
+		return $this->documentTemplateResponse($wopi, $params);
 	}
 
 	/**
@@ -304,9 +292,6 @@ class DocumentController extends Controller {
 					'title' => $item->getName(),
 					'fileId' => $item->getId() . '_' . $this->config->getSystemValue('instanceid'),
 					'path' => '/',
-					'instanceId' => $this->config->getSystemValue('instanceid'),
-					'canonical_webroot' => $this->appConfig->getAppValue('canonical_webroot'),
-					'userId' => $this->uid,
 				];
 
 				list($urlSrc, $token, $wopi) = $this->tokenManager->getToken($item->getId(), $shareToken, $this->uid);
@@ -314,10 +299,7 @@ class DocumentController extends Controller {
 				$params['token_ttl'] = $wopi->getExpiry();
 				$params['urlsrc'] = $urlSrc;
 
-				$this->initialState->provideDocument($wopi);
-				$response = new TemplateResponse('richdocuments', 'documents', $params, 'base');
-				$this->applyPolicies($response);
-				return $response;
+				return $this->documentTemplateResponse($wopi, $params);
 			}
 		} catch (\Exception $e) {
 			$this->logger->logException($e, ['app' => 'richdocuments']);
@@ -382,15 +364,10 @@ class DocumentController extends Controller {
 					'token_ttl' => $wopi->getExpiry(),
 					'urlsrc' => $urlSrc,
 					'path' => '/',
-					'instanceId' => $this->config->getSystemValue('instanceid'),
-					'canonical_webroot' => $this->appConfig->getAppValue('canonical_webroot'),
 					'userId' => $remoteWopi->getEditorUid() ? ($remoteWopi->getEditorUid() . '@' . $remoteServer) : null,
 				];
 
-				$this->initialState->provideDocument($wopi);
-				$response = new TemplateResponse('richdocuments', 'documents', $params, 'base');
-				$this->applyPolicies($response);
-				return $response;
+				return $this->documentTemplateResponse($wopi, $params);
 			}
 		} catch (ShareNotFound $e) {
 			return new TemplateResponse('core', '404', [], 'guest');

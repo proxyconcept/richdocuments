@@ -173,15 +173,10 @@ class DirectViewController extends Controller {
 				'token_ttl' => $wopi->getExpiry(),
 				'urlsrc' => $urlSrc,
 				'path' => $relativePath,
-				'instanceId' => $this->config->getSystemValue('instanceid'),
-				'canonical_webroot' => $this->appConfig->getAppValue('canonical_webroot'),
 				'direct' => true,
 			];
 
-			$this->initialState->provideDocument($wopi);
-			$response = new TemplateResponse('richdocuments', 'documents', $params, 'base');
-			$this->applyPolicies($response);
-			return $response;
+			return $this->documentTemplateResponse($wopi, $params);
 		} catch (\Exception $e) {
 			$this->logger->logException($e);
 			return  $this->renderErrorPage('Failed to open the requested file.');
@@ -216,8 +211,6 @@ class DirectViewController extends Controller {
 					'title' => $node->getName(),
 					'fileId' => $node->getId() . '_' . $this->settings->getSystemValue('instanceid'),
 					'path' => '/',
-					'instanceId' => $this->settings->getSystemValue('instanceid'),
-					'canonical_webroot' => $this->appConfig->getAppValue('canonical_webroot'),
 					'userId' => null,
 					'direct' => true,
 					'directGuest' => empty($direct->getUid()),
@@ -231,10 +224,7 @@ class DirectViewController extends Controller {
 				$params['token_ttl'] = $wopi->getExpiry();
 				$params['urlsrc'] = $urlSrc;
 
-				$this->initialState->provideDocument($wopi);
-				$response = new TemplateResponse('richdocuments', 'documents', $params, 'base');
-				$this->applyPolicies($response);
-				return $response;
+				return $this->documentTemplateResponse($wopi, $params);
 			}
 		} catch (\Exception $e) {
 			$this->logger->logException($e, ['app' => 'richdocuments']);

@@ -41,17 +41,22 @@ class InitialStateService {
 	/** @var IConfig */
 	private $config;
 
+	/** @var string|null */
+	private $userId;
+
 	/** @var bool */
 	private $hasProvidedCapabilities = false;
 
 	public function __construct(
 		IInitialState $initialState,
 		CapabilitiesService $capabilitiesService,
-		IConfig $config
+		IConfig $config,
+		$userId
 	) {
 		$this->initialState = $initialState;
 		$this->capabilitiesService = $capabilitiesService;
 		$this->config = $config;
+		$this->userId = $userId;
 	}
 
 	public function provideCapabilities(): void {
@@ -66,8 +71,10 @@ class InitialStateService {
 		$this->hasProvidedCapabilities = true;
 	}
 
-	public function provideDocument(Wopi $wopi): void {
+	public function provideDocument(Wopi $wopi, array $params): void {
 		$this->provideCapabilities();
+
+		$this->initialState->provideInitialState('document', $this->prepareParams($params));
 
 		$this->initialState->provideInitialState('wopi', $wopi);
 		$this->initialState->provideInitialState('theme', $this->config->getAppValue(Application::APPNAME, 'theme', 'nextcloud'));
@@ -81,5 +88,24 @@ class InitialStateService {
 		$this->initialState->provideInitialState('theming-customLogo', ($logoSet ?
 			\OC::$server->getURLGenerator()->getAbsoluteURL(\OC::$server->getThemingDefaults()->getLogo())
 			: false));
+	}
+
+	public function prepareParams(array $params): array {
+		$defaults = [
+			'instanceId' => $this->config->getSystemValue('instanceid'),
+			'canonical_webroot' => $this->config->getAppValue(Application::APPNAME, 'canonical_webroot', ''),
+			'userId' => $this->userId,
+			'token' => '',
+			'token_ttl' => 0,
+			'directEdit' => false,
+			'directGuest' => false,
+			'path' => '',
+			'urlsrc' => '',
+			'fileId' => '',
+			'title' => '',
+			'permissions' => '',
+		];
+
+		return array_merge($defaults, $params);
 	}
 }
