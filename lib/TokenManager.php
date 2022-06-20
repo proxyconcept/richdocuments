@@ -147,6 +147,21 @@ class TokenManager {
 						}
 					}
 				}
+
+				// disable download if at least one shared access has it disabled
+				foreach ($files as $file) {
+					$storage = $file->getStorage();
+					// using string as we have no guarantee that "files_sharing" app is loaded
+					if ($storage->instanceOfStorage('OCA\Files_Sharing\SharedStorage')) {
+						/** @var \OCA\Files_Sharing\SharedStorage $storage */
+						$share = $storage->getShare();
+						$canDownload = $share->getAttributes()->getAttribute('permissions', 'download');
+						if ($canDownload !== null && !$canDownload) {
+							$hideDownload = true;
+							break;
+						}
+					}
+				}
 			} catch (\Exception $e) {
 				throw $e;
 			}
